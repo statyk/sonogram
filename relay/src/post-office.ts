@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import type { Env } from './types';
-import { verifySignature } from './auth';
+import { verifySignature, sha256hex, b64decode } from './auth';
 import { json, err, parseJson } from './http';
 
 export const RETENTION_DAYS = 30;
@@ -88,6 +88,8 @@ export class PostOffice extends DurableObject<Env> {
     switch (route) {
       case 'GET /status':
         return this.handleStatus(auth);
+      case 'POST /admin/invite':
+        return this.requireOwner(auth) ?? this.handleInvite(bodyBytes);
       default:
         return err(404, 'not found');
     }
@@ -164,7 +166,62 @@ export class PostOffice extends DurableObject<Env> {
     return json({ agent: auth.agent, is_owner: auth.isOwner, agents, channels, unread });
   }
 
-  private handleRegister(bodyBytes: Uint8Array): Response {
-    return err(501, 'not implemented'); // Task 3
+  private async handleInvite(bodyBytes: Uint8Array): Promise<Response> {
+    const body = parseJson(bodyBytes);
+    if (!body || typeof body.name !== 'string') return err(400, 'name required');
+    if (!NAME_RE.test(body.name)) return err(400, 'invalid name (lowercase letters, digits, hyphens; max 32)');
+    const code = randomHex(16);
+    const codeHash = await sha256hex(new TextEncoder().encode(code));
+    this.sql.exec(
+      'INSERT OR REPLACE INTO invites (code_hash, name, created_at, redeemed_at) VALUES (?, ?, ?, NULL)',
+      codeHash,
+      body.name,
+      Date.now(),
+    );
+    return json({ invite_code: code, name: body.name });
   }
+
+  private async handleRegister(bodyBytes: Uint8Array): Promise<Response> {
+    const body = parseJson(bodyBytes);
+    if (
+      !body ||
+      typeof body.invite_code !== 'string' ||
+      typeof body.name !== 'string' ||
+      typeof body.public_key !== 'string'
+    ) {
+      return err(400, 'invite_code, name, public_key required');
+    }
+    if (!NAME_RE.test(body.name)) return err(400, 'invalid name');
+    let keyBytes: Uint8Array;
+    try {
+      keyBytes = b64decode(body.public_key);
+    } catch {
+      return err(400, 'public_key must be base64');
+    }
+    if (keyBytes.length !== 32) return err(400, 'public_key must be 32 raw Ed25519 bytes, base64-encoded');
+
+    const codeHash = await sha256hex(new TextEncoder().encode(body.invite_code));
+    const invite = this.sql
+      .exec('SELECT name FROM invites WHERE code_hash = ? AND redeemed_at IS NULL', codeHash)
+      .toArray()[0];
+    if (!invite || invite.name !== body.name) return err(403, 'invalid or redeemed invite');
+
+    const existing = this.sql.exec('SELECT 1 FROM agents WHERE name = ?', body.name).toArray()[0];
+    if (existing) return err(409, 'agent already exists');
+
+    this.sql.exec(
+      `INSERT INTO agents (name, public_key, is_owner, status, created_at) VALUES (?, ?, 0, 'active', ?)`,
+      body.name,
+      body.public_key,
+      Date.now(),
+    );
+    this.sql.exec('UPDATE invites SET redeemed_at = ? WHERE code_hash = ?', Date.now(), codeHash);
+    return json({ ok: true, name: body.name });
+  }
+}
+
+function randomHex(byteLen: number): string {
+  const bytes = new Uint8Array(byteLen);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 }

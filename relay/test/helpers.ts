@@ -77,7 +77,9 @@ export async function createAgent(name: string): Promise<TestAgent> {
 
   const regBody = JSON.stringify({ invite_code, name, public_key: publicKeyB64 });
   const regRes = await SELF.fetch('https://relay/register', { method: 'POST', body: regBody });
-  if (regRes.status !== 200) throw new Error(`register failed: ${regRes.status}`);
+  const regStatus = regRes.status;
+  await regRes.text();
+  if (regStatus !== 200) throw new Error(`register failed: ${regStatus}`);
 
   return {
     name,
