@@ -90,6 +90,12 @@ export class PostOffice extends DurableObject<Env> {
         return this.handleStatus(auth);
       case 'POST /admin/invite':
         return this.requireOwner(auth) ?? this.handleInvite(bodyBytes);
+      case 'POST /send':
+        return this.handleSend(auth, bodyBytes);
+      case 'GET /read':
+        return this.handleRead(auth, url);
+      case 'POST /cursor':
+        return this.handleCursor(auth, bodyBytes);
       default:
         return err(404, 'not found');
     }
@@ -164,6 +170,109 @@ export class PostOffice extends DurableObject<Env> {
       if (n > 0) unread[ch] = n;
     }
     return json({ agent: auth.agent, is_owner: auth.isOwner, agents, channels, unread });
+  }
+
+  /** Channel gate shared by send and read: channel exists + caller is a member. */
+  private checkChannelAccess(auth: AuthedAgent, target: string): Response | null {
+    const chan = target.slice(1);
+    const exists = this.sql.exec('SELECT 1 FROM channels WHERE name = ?', chan).toArray()[0];
+    if (!exists) return err(404, 'unknown channel');
+    const member = this.sql
+      .exec('SELECT 1 FROM channel_members WHERE channel = ? AND agent = ?', chan, auth.agent)
+      .toArray()[0];
+    if (!member) return err(403, 'not a channel member');
+    return null;
+  }
+
+  /** Returns null if allowed; an error Response otherwise. */
+  private checkReadAccess(auth: AuthedAgent, target: string): Response | null {
+    if (target.startsWith('#')) return this.checkChannelAccess(auth, target);
+    if (target !== auth.agent) return err(403, 'not your inbox');
+    return null;
+  }
+
+  private handleSend(auth: AuthedAgent, bodyBytes: Uint8Array): Response {
+    const body = parseJson(bodyBytes);
+    if (!body || typeof body.target !== 'string' || typeof body.body !== 'string') {
+      return err(400, 'target and body required');
+    }
+    if (new TextEncoder().encode(body.body).length > MAX_BODY_BYTES) {
+      return err(413, `body exceeds ${MAX_BODY_BYTES} bytes`);
+    }
+    const target = body.target as string;
+    if (target.startsWith('#')) {
+      const denied = this.checkChannelAccess(auth, target);
+      if (denied) return denied;
+    } else {
+      const recipient = this.sql
+        .exec("SELECT 1 FROM agents WHERE name = ? AND status = 'active'", target)
+        .toArray()[0];
+      if (!recipient) return err(404, 'unknown recipient');
+    }
+    const row = this.sql
+      .exec(
+        `INSERT INTO messages (from_agent, target, thread_id, subject, body, created_at)
+         VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+        auth.agent,
+        target,
+        typeof body.thread_id === 'string' ? body.thread_id : null,
+        typeof body.subject === 'string' ? body.subject : null,
+        body.body,
+        Date.now(),
+      )
+      .one();
+    return json({ id: Number(row.id) });
+  }
+
+  private handleRead(auth: AuthedAgent, url: URL): Response {
+    const target = url.searchParams.get('target');
+    if (!target) return err(400, 'target required');
+    const denied = this.checkReadAccess(auth, target);
+    if (denied) return denied;
+    let since: number;
+    if (url.searchParams.has('since')) {
+      since = Number(url.searchParams.get('since'));
+      if (!Number.isInteger(since) || since < 0) return err(400, 'since must be a non-negative integer');
+    } else {
+      since = this.cursorFor(auth.agent, target);
+    }
+    const messages = this.sql
+      .exec(
+        `SELECT id, from_agent, target, thread_id, subject, body, created_at
+         FROM messages WHERE target = ? AND id > ? ORDER BY id ASC LIMIT 200`,
+        target,
+        since,
+      )
+      .toArray()
+      .map((r) => ({
+        id: Number(r.id),
+        from: r.from_agent as string,
+        target: r.target as string,
+        thread_id: (r.thread_id as string) ?? null,
+        subject: (r.subject as string) ?? null,
+        body: r.body as string,
+        created_at: Number(r.created_at),
+      }));
+    return json({ messages });
+  }
+
+  private handleCursor(auth: AuthedAgent, bodyBytes: Uint8Array): Response {
+    const body = parseJson(bodyBytes);
+    if (
+      !body ||
+      typeof body.target !== 'string' ||
+      !Number.isInteger(body.last_read) ||
+      body.last_read < 0
+    ) {
+      return err(400, 'target and non-negative integer last_read required');
+    }
+    this.sql.exec(
+      'INSERT OR REPLACE INTO cursors (agent, target, last_read) VALUES (?, ?, ?)',
+      auth.agent,
+      body.target,
+      body.last_read,
+    );
+    return json({ ok: true });
   }
 
   private async handleInvite(bodyBytes: Uint8Array): Promise<Response> {
