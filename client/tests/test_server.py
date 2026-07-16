@@ -32,19 +32,18 @@ class FakeClient:
 
 
 def test_format_digest_empty():
-    out = server.format_digest("llama", {}, {})
+    out = server.format_digest("llama", {})
     assert "No new messages" in out
 
 
 def test_format_digest_renders_messages_and_mark_read_hint():
-    unread = {"llama": 1, "#coord": 1}
     messages = {
         "llama": [{"id": 3, "from": "radio", "target": "llama", "subject": "hi", "thread_id": None,
                    "body": "hello there", "created_at": 1752600000000}],
         "#coord": [{"id": 4, "from": "radio", "target": "#coord", "subject": None, "thread_id": "t9",
                     "body": "channel msg", "created_at": 1752600000000}],
     }
-    out = server.format_digest("llama", unread, messages)
+    out = server.format_digest("llama", messages)
     assert "radio" in out and "hello there" in out and "channel msg" in out
     assert "sonogram_mark_read" in out
     assert "[3]" in out and "[4]" in out

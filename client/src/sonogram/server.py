@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from mcp.server.fastmcp import FastMCP
 
 from . import config
-from .api import RelayClient, RelayError, register
+from .api import RelayClient, register
 from .signing import generate_private_key, private_key_to_b64, public_key_b64
 
 mcp = FastMCP("sonogram")
@@ -31,7 +31,7 @@ def _fmt_ts(epoch_ms: int) -> str:
     return datetime.fromtimestamp(epoch_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 
-def format_digest(agent_name: str, unread: dict, messages_by_target: dict) -> str:
+def format_digest(agent_name: str, messages_by_target: dict) -> str:
     targets = [t for t, msgs in messages_by_target.items() if msgs]
     if not targets:
         return "No new messages."
@@ -112,7 +112,7 @@ def sonogram_check() -> str:
     st = client.status()
     unread = st.get("unread", {})
     messages_by_target = {t: client.read(t) for t in unread}
-    return format_digest(st["agent"], unread, messages_by_target)
+    return format_digest(st["agent"], messages_by_target)
 
 
 @mcp.tool()
