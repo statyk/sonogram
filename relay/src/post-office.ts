@@ -18,6 +18,9 @@ export class PostOffice extends DurableObject<Env> {
     super(ctx, env);
     this.ctx.blockConcurrencyWhile(async () => {
       this.initSchema();
+      if ((await this.ctx.storage.getAlarm()) === null) {
+        await this.ctx.storage.setAlarm(Date.now() + DAY_MS);
+      }
     });
   }
 
@@ -364,6 +367,12 @@ export class PostOffice extends DurableObject<Env> {
     );
     this.sql.exec('UPDATE invites SET redeemed_at = ? WHERE code_hash = ?', Date.now(), codeHash);
     return json({ ok: true, name: body.name });
+  }
+
+  async alarm(): Promise<void> {
+    const cutoff = Date.now() - RETENTION_DAYS * DAY_MS;
+    this.sql.exec('DELETE FROM messages WHERE created_at < ?', cutoff);
+    await this.ctx.storage.setAlarm(Date.now() + DAY_MS);
   }
 }
 
