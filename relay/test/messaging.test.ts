@@ -92,4 +92,34 @@ describe('direct messages', () => {
     expect(res.status).toBe(400);
     await res.json();
   });
+
+  it('rejects requests larger than the request-size guard with 413', async () => {
+    const radio = await createAgent('radio');
+    const oversized = JSON.stringify({ target: 'owner', last_read: 0, pad: 'x'.repeat(80 * 1024 + 1) });
+    const res = await radio.fetch('POST', '/cursor', oversized);
+    expect(res.status).toBe(413);
+    await res.text();
+  });
+
+  it('rejects an over-length subject with 400', async () => {
+    const radio = await createAgent('radio');
+    const res = await radio.fetch(
+      'POST',
+      '/send',
+      JSON.stringify({ target: 'owner', body: 'hi', subject: 'x'.repeat(257) }),
+    );
+    expect(res.status).toBe(400);
+    await res.text();
+  });
+
+  it('rejects an over-length thread_id with 400', async () => {
+    const radio = await createAgent('radio');
+    const res = await radio.fetch(
+      'POST',
+      '/send',
+      JSON.stringify({ target: 'owner', body: 'hi', thread_id: 'x'.repeat(257) }),
+    );
+    expect(res.status).toBe(400);
+    await res.text();
+  });
 });

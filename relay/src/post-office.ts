@@ -5,6 +5,8 @@ import { json, err, parseJson } from './http';
 
 export const RETENTION_DAYS = 30;
 export const MAX_BODY_BYTES = 64 * 1024;
+export const MAX_REQUEST_BYTES = 80 * 1024;
+export const MAX_FIELD_CHARS = 256;
 export const NAME_RE = /^[a-z0-9][a-z0-9-]{0,31}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -91,7 +93,17 @@ export class PostOffice extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const pathWithQuery = url.pathname + url.search;
+
+    // Reject oversized requests before buffering when the client declares a
+    // size, and again after buffering as a backstop against a lying header.
+    const declaredLen = request.headers.get('content-length');
+    if (declaredLen !== null && Number(declaredLen) > MAX_REQUEST_BYTES) {
+      return err(413, `request exceeds ${MAX_REQUEST_BYTES} bytes`);
+    }
     const bodyBytes = new Uint8Array(await request.arrayBuffer());
+    if (bodyBytes.length > MAX_REQUEST_BYTES) {
+      return err(413, `request exceeds ${MAX_REQUEST_BYTES} bytes`);
+    }
     const route = `${request.method} ${url.pathname}`;
 
     if (route === 'POST /register') return this.handleRegister(bodyBytes);
@@ -216,6 +228,12 @@ export class PostOffice extends DurableObject<Env> {
     }
     if (new TextEncoder().encode(body.body).length > MAX_BODY_BYTES) {
       return err(413, `body exceeds ${MAX_BODY_BYTES} bytes`);
+    }
+    if (typeof body.subject === 'string' && body.subject.length > MAX_FIELD_CHARS) {
+      return err(400, `subject exceeds ${MAX_FIELD_CHARS} characters`);
+    }
+    if (typeof body.thread_id === 'string' && body.thread_id.length > MAX_FIELD_CHARS) {
+      return err(400, `thread_id exceeds ${MAX_FIELD_CHARS} characters`);
     }
     const target = body.target as string;
     if (target.startsWith('#')) {
