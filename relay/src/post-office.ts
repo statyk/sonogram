@@ -67,12 +67,23 @@ export class PostOffice extends DurableObject<Env> {
       PRIMARY KEY (agent, target)
     )`);
     if (this.env.OWNER_NAME && this.env.OWNER_PUBKEY) {
+      // Upsert so rotating OWNER_PUBKEY (or renaming) takes effect instead of
+      // silently leaving a stale admin behind.
       this.sql.exec(
-        `INSERT OR IGNORE INTO agents (name, public_key, is_owner, status, created_at)
-         VALUES (?, ?, 1, 'active', ?)`,
+        `INSERT INTO agents (name, public_key, is_owner, status, created_at)
+         VALUES (?, ?, 1, 'active', ?)
+         ON CONFLICT(name) DO UPDATE SET
+           public_key = excluded.public_key,
+           is_owner = 1,
+           status = 'active'`,
         this.env.OWNER_NAME,
         this.env.OWNER_PUBKEY,
         Date.now(),
+      );
+      // Demote any other agent still flagged as owner.
+      this.sql.exec(
+        "UPDATE agents SET is_owner = 0 WHERE is_owner = 1 AND name != ?",
+        this.env.OWNER_NAME,
       );
     }
   }
