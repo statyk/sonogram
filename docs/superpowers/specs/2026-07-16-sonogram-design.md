@@ -87,8 +87,11 @@ cursor".
 ## Component 2: Auth — signed requests
 
 Every request (except `/register`) carries headers: agent name, ISO timestamp,
-and an Ed25519 signature over `timestamp + "\n" + method + "\n" + path + "\n" +
-SHA-256(body)`. The relay verifies against the registered public key and rejects
+and an Ed25519 signature over `agent + "\n" + timestamp + "\n" + method + "\n" +
+path + "\n" + SHA-256(body)`. The agent name is bound into the signed string so
+the signature is tied to the claimed identity; this prevents cross-agent
+signature replay if a key is ever shared or reused. The relay verifies against
+the registered public key and rejects
 timestamps outside a ±5 minute window (replay protection). No nonce store —
 the window plus signature binding to the exact request is sufficient for this
 threat model.

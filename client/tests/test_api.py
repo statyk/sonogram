@@ -37,8 +37,9 @@ def test_send_signs_request_and_returns_id(key):
     # signature verifies against the public key over the exact signing string
     sig = base64.b64decode(req.headers["x-sonogram-signature"])
     ts = req.headers["x-sonogram-timestamp"]
-    key.public_key().verify(sig, signing_string(ts, "POST", "/send", req.content).encode())
-    assert req.headers["x-sonogram-agent"] == "llama"
+    agent = req.headers["x-sonogram-agent"]
+    key.public_key().verify(sig, signing_string(agent, ts, "POST", "/send", req.content).encode())
+    assert agent == "llama"
 
 
 def test_read_signs_path_including_query(key):
@@ -57,7 +58,8 @@ def test_read_signs_path_including_query(key):
     assert "target=%23coord" in path_with_query and "since=5" in path_with_query
     sig = base64.b64decode(req.headers["x-sonogram-signature"])
     ts = req.headers["x-sonogram-timestamp"]
-    key.public_key().verify(sig, signing_string(ts, "GET", path_with_query, b"").encode())
+    agent = req.headers["x-sonogram-agent"]
+    key.public_key().verify(sig, signing_string(agent, ts, "GET", path_with_query, b"").encode())
 
 
 def test_relay_errors_raise(key):

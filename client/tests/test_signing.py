@@ -22,9 +22,9 @@ def test_key_roundtrip():
 
 def test_signing_string_format():
     body = b'{"a":1}'
-    s = signing_string("2026-07-16T12:00:00Z", "post", "/send", body)
+    s = signing_string("llama", "2026-07-16T12:00:00Z", "post", "/send", body)
     expected_hash = hashlib.sha256(body).hexdigest()
-    assert s == f"2026-07-16T12:00:00Z\nPOST\n/send\n{expected_hash}"
+    assert s == f"llama\n2026-07-16T12:00:00Z\nPOST\n/send\n{expected_hash}"
 
 
 def test_sign_headers_verify():
@@ -35,7 +35,7 @@ def test_sign_headers_verify():
     sig = base64.b64decode(headers["x-sonogram-signature"])
     assert len(sig) == 64
     # verify with the public key — raises InvalidSignature on failure
-    key.public_key().verify(sig, signing_string("2026-07-16T12:00:00Z", "GET", "/status", b"").encode())
+    key.public_key().verify(sig, signing_string("llama", "2026-07-16T12:00:00Z", "GET", "/status", b"").encode())
 
 
 def test_sign_headers_default_timestamp_is_utc_iso():

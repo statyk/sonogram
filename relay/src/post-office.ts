@@ -148,6 +148,7 @@ export class PostOffice extends DurableObject<Env> {
     if (row.status !== 'active') return err(403, 'agent revoked');
 
     const result = await verifySignature({
+      agent,
       publicKeyB64: row.public_key as string,
       signatureB64: signature,
       timestamp,

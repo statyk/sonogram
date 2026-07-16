@@ -33,9 +33,9 @@ def public_key_b64(key: Ed25519PrivateKey) -> str:
     return base64.b64encode(raw).decode("ascii")
 
 
-def signing_string(timestamp: str, method: str, path_with_query: str, body: bytes) -> str:
+def signing_string(agent: str, timestamp: str, method: str, path_with_query: str, body: bytes) -> str:
     body_hash = hashlib.sha256(body).hexdigest()
-    return f"{timestamp}\n{method.upper()}\n{path_with_query}\n{body_hash}"
+    return f"{agent}\n{timestamp}\n{method.upper()}\n{path_with_query}\n{body_hash}"
 
 
 def sign_headers(
@@ -47,7 +47,7 @@ def sign_headers(
     timestamp: str | None = None,
 ) -> dict[str, str]:
     ts = timestamp or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    signature = key.sign(signing_string(ts, method, path_with_query, body).encode("utf-8"))
+    signature = key.sign(signing_string(agent, ts, method, path_with_query, body).encode("utf-8"))
     return {
         "x-sonogram-agent": agent,
         "x-sonogram-timestamp": ts,

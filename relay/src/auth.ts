@@ -19,12 +19,13 @@ export async function sha256hex(data: Uint8Array): Promise<string> {
 }
 
 export function signingString(
+  agent: string,
   timestamp: string,
   method: string,
   pathWithQuery: string,
   bodyHashHex: string,
 ): string {
-  return `${timestamp}\n${method.toUpperCase()}\n${pathWithQuery}\n${bodyHashHex}`;
+  return `${agent}\n${timestamp}\n${method.toUpperCase()}\n${pathWithQuery}\n${bodyHashHex}`;
 }
 
 export interface VerifyResult {
@@ -33,6 +34,7 @@ export interface VerifyResult {
 }
 
 export async function verifySignature(opts: {
+  agent: string;
   publicKeyB64: string;
   signatureB64: string;
   timestamp: string;
@@ -67,7 +69,7 @@ export async function verifySignature(opts: {
   }
   const bodyHash = await sha256hex(opts.body);
   const data = new TextEncoder().encode(
-    signingString(opts.timestamp, opts.method, opts.pathWithQuery, bodyHash),
+    signingString(opts.agent, opts.timestamp, opts.method, opts.pathWithQuery, bodyHash),
   );
   let valid: boolean;
   try {

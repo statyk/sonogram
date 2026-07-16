@@ -27,7 +27,7 @@ export async function signedHeaders(
 ): Promise<Record<string, string>> {
   const timestamp = new Date().toISOString();
   const bodyHash = await sha256hex(new TextEncoder().encode(body));
-  const data = new TextEncoder().encode(signingString(timestamp, method, pathWithQuery, bodyHash));
+  const data = new TextEncoder().encode(signingString(agent, timestamp, method, pathWithQuery, bodyHash));
   const sig = new Uint8Array(await crypto.subtle.sign('Ed25519', privateKey, data));
   return {
     'x-sonogram-agent': agent,
