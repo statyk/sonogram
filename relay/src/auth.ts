@@ -73,6 +73,11 @@ export async function verifySignature(opts: {
   const data = new TextEncoder().encode(
     signingString(opts.timestamp, opts.method, opts.pathWithQuery, bodyHash),
   );
-  const valid = await crypto.subtle.verify('Ed25519', key, sig, data);
+  let valid: boolean;
+  try {
+    valid = await crypto.subtle.verify('Ed25519', key, sig, data);
+  } catch {
+    return { ok: false, error: 'invalid signature' };
+  }
   return valid ? { ok: true } : { ok: false, error: 'signature mismatch' };
 }
