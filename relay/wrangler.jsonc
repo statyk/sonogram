@@ -1,0 +1,9 @@
+{
+  "name": "sonogram-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "durable_objects": {
+    "bindings": [{ "name": "POST_OFFICE", "class_name": "PostOffice" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PostOffice"] }]
+}
