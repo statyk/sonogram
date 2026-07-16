@@ -90,6 +90,10 @@ export class PostOffice extends DurableObject<Env> {
         return this.handleStatus(auth);
       case 'POST /admin/invite':
         return this.requireOwner(auth) ?? this.handleInvite(bodyBytes);
+      case 'POST /admin/channel':
+        return this.requireOwner(auth) ?? this.handleChannelCreate(bodyBytes);
+      case 'POST /admin/revoke':
+        return this.requireOwner(auth) ?? this.handleRevoke(bodyBytes);
       case 'POST /send':
         return this.handleSend(auth, bodyBytes);
       case 'GET /read':
@@ -272,6 +276,40 @@ export class PostOffice extends DurableObject<Env> {
       body.target,
       body.last_read,
     );
+    return json({ ok: true });
+  }
+
+  private handleChannelCreate(bodyBytes: Uint8Array): Response {
+    const body = parseJson(bodyBytes);
+    if (!body || typeof body.name !== 'string' || !Array.isArray(body.members)) {
+      return err(400, 'name and members[] required');
+    }
+    if (!NAME_RE.test(body.name)) return err(400, 'invalid channel name');
+    if (body.members.length === 0 || !body.members.every((m: unknown) => typeof m === 'string')) {
+      return err(400, 'members must be a non-empty list of agent names');
+    }
+    const exists = this.sql.exec('SELECT 1 FROM channels WHERE name = ?', body.name).toArray()[0];
+    if (exists) return err(409, 'channel already exists');
+    for (const member of body.members as string[]) {
+      const agent = this.sql
+        .exec("SELECT 1 FROM agents WHERE name = ? AND status = 'active'", member)
+        .toArray()[0];
+      if (!agent) return err(400, `unknown agent in members: ${member}`);
+    }
+    this.sql.exec('INSERT INTO channels (name, created_at) VALUES (?, ?)', body.name, Date.now());
+    for (const member of body.members as string[]) {
+      this.sql.exec('INSERT OR IGNORE INTO channel_members (channel, agent) VALUES (?, ?)', body.name, member);
+    }
+    return json({ ok: true, channel: '#' + body.name });
+  }
+
+  private handleRevoke(bodyBytes: Uint8Array): Response {
+    const body = parseJson(bodyBytes);
+    if (!body || typeof body.name !== 'string') return err(400, 'name required');
+    const row = this.sql.exec('SELECT is_owner FROM agents WHERE name = ?', body.name).toArray()[0];
+    if (!row) return err(404, 'unknown agent');
+    if (row.is_owner === 1) return err(400, 'cannot revoke the owner');
+    this.sql.exec("UPDATE agents SET status = 'revoked' WHERE name = ?", body.name);
     return json({ ok: true });
   }
 
