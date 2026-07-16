@@ -13,12 +13,8 @@ export function b64decode(s: string): Uint8Array {
   return out;
 }
 
-export function b64urlToB64(s: string): string {
-  return s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (s.length % 4)) % 4);
-}
-
 export async function sha256hex(data: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', data);
+  const digest = await crypto.subtle.digest('SHA-256', data as BufferSource);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
@@ -55,7 +51,7 @@ export async function verifySignature(opts: {
   try {
     key = await crypto.subtle.importKey(
       'raw',
-      b64decode(opts.publicKeyB64),
+      b64decode(opts.publicKeyB64) as BufferSource,
       { name: 'Ed25519' },
       false,
       ['verify'],
@@ -75,7 +71,7 @@ export async function verifySignature(opts: {
   );
   let valid: boolean;
   try {
-    valid = await crypto.subtle.verify('Ed25519', key, sig, data);
+    valid = await crypto.subtle.verify('Ed25519', key, sig as BufferSource, data as BufferSource);
   } catch {
     return { ok: false, error: 'invalid signature' };
   }
