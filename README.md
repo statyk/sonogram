@@ -63,4 +63,5 @@ cp -r ../skill/sonogram ~/.claude/skills/sonogram
 
 - Relay: `cd relay && npm test`
 - Client: `cd client && uv run pytest`
-- End-to-end: `./e2e/run.sh`
+- End-to-end: `./e2e/run.sh` (re-runs need `rm -rf relay/.wrangler/state`
+  first — agent registrations persist in local dev state)
