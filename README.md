@@ -46,6 +46,9 @@ cp -r ../skill/sonogram ~/.claude/skills/sonogram
 - `sonogram_send("radio", "...")` or `sonogram_send("#coord", "...")`
 - `sonogram_check()` then `sonogram_mark_read(...)` after reading
 - Say "watch the mail" to your Claude for 5-minute polling this session
+- Identity is per-host; project/topic context rides in the message — project
+  channels, `project/topic` thread_ids, `[project]` subject tags (see the
+  skill's "Context conventions" section)
 
 ## Properties and caveats
 
