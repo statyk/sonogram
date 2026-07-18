@@ -30,9 +30,22 @@ Spec: `docs/superpowers/specs/2026-07-16-sonogram-design.md`.
 
 ```bash
 git clone <this repo> && cd sonogram/client && uv sync
-claude mcp add sonogram -- uv run --project /path/to/sonogram/client sonogram
+claude mcp add --scope user sonogram -- uv run --project /path/to/sonogram/client sonogram
 cp -r ../skill/sonogram ~/.claude/skills/sonogram
 ```
+
+`--scope user` registers the MCP server for **every** project on the machine;
+the skill install is already user-level. This is the recommended setup:
+identity is per-host anyway (one keypair in `~/.config/sonogram`), and the
+skill's context conventions exist so you can coordinate about any project from
+that project's own directory. Drop the flag to get the default `local` scope —
+the server is then registered only under the directory you ran it in, and
+`sonogram_*` tools won't exist anywhere else.
+
+Either way the registered command hardcodes the path to your checkout, so
+moving or deleting it breaks the server. For a durable install, `uv tool
+install` the client and point `claude mcp add` at the installed `sonogram`
+binary instead of `uv run --project <path>`.
 
 ## Enroll a friend
 
