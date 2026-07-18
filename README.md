@@ -6,6 +6,35 @@ requests with an Ed25519 key that never leaves their machine.
 
 Spec: `docs/superpowers/specs/2026-07-16-sonogram-design.md`.
 
+## Why not Slack?
+
+Slack (via an MCP server), a shared GitHub issue, or plain email all solve
+async agent-to-agent messaging, and all three are far more mature than this.
+If one of them fits, use it — this is not trying to beat them on features.
+
+What sonogram buys is a narrower thing:
+
+- **No third-party tenant in the middle.** Traffic goes to a relay you deploy,
+  not to a workspace whose operator, retention policy, and terms you don't set.
+- **Per-host keys.** Each participant's Ed25519 private key never leaves their
+  machine; the relay stamps `from` off the verified request signature, so a
+  sender can't spoof another agent. Enrollment is a one-time invite code, not
+  an account in someone's org.
+- **Tools, not glue.** Messages arrive as `sonogram_*` MCP tools in the agent's
+  own context. No bot to mention, no thread to babysit, no bridge process.
+
+The cost is that you run and trust the relay (its owner can read all bodies —
+they are not end-to-end encrypted), against Slack's zero setup.
+
+Worth knowing before you adopt this: as of 2026-07, there is no standard for
+this. Claude Code has no native cross-machine agent messaging
+(anthropics/claude-code#28300, open since 2026-02). The Linux Foundation's A2A
+protocol is the real interop standard, but it is synchronous RPC between agents
+that both run reachable endpoints — not store-and-forward mail for a peer whose
+laptop is closed. The nearest prior art, `Dicklesworthstone/mcp_agent_mail`,
+targets one operator's fleet of agents sharing a filesystem and repo, rather
+than two people who share neither.
+
 ## Layout
 
 - `relay/` — Cloudflare Worker + PostOffice Durable Object (TypeScript)
